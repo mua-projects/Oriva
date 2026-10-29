@@ -1,0 +1,14 @@
+
+# macOS Finder metadata
+.DS_Store
+
+# Xcode user-specific settings
+xcuserdata/
+*.xcuserstate
+
+# macOS Finder metadata
+.DS_Store
+
+# Xcode user-specific settings
+xcuserdata/
+*.xcuserstate

@@ -63,6 +63,11 @@ struct AdminAnalysisView: View {
                         value: analysis.formattedDueDate
                     )
 
+                    if analysis.amount == nil && analysis.validationWarnings.contains(where: { $0.contains("Different amounts due") }) {
+                        Divider()
+                        AnalysisField(label: "AMOUNT", value: "Needs verification")
+                    }
+
                     if let amount = analysis.amount {
                         Divider()
 
@@ -75,6 +80,24 @@ struct AdminAnalysisView: View {
                 .padding()
                 .background(Color(.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                if !analysis.validationWarnings.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Please verify", systemImage: "exclamationmark.triangle")
+                            .font(.headline)
+                        ForEach(analysis.validationWarnings, id: \.self) { warning in
+                            Text("• " + warning)
+                                .font(.subheadline)
+                        }
+                        Text("Compare these details with the original before tracking. You can use Edit Details to correct them.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("WHAT HAPPENS IF I IGNORE THIS?")
@@ -102,7 +125,8 @@ struct AdminAnalysisView: View {
                         dueDate: analysis.dueDate,
                         amount: analysis.amount,
                         consequence: analysis.consequence,
-                        suggestedAction: analysis.suggestedAction
+                        suggestedAction: analysis.suggestedAction,
+                        dateType: analysis.dateType
                     )
 
                     appState.addAdminItem(item)

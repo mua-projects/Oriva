@@ -25,23 +25,38 @@ struct CreatePostView: View {
 
                 VStack(spacing: 12) {
 
-                    CaptureOption(
-                        icon: "camera.fill",
-                        title: "Take a Photo",
-                        subtitle: "Letters, bills, receipts and notices"
-                    )
+                    NavigationLink {
+                        PhotoTextImportView(appState: appState, startWithCamera: true)
+                    } label: {
+                        CaptureOptionContent(
+                            icon: "camera.fill",
+                            title: "Take a Photo",
+                            subtitle: "Letters, bills, receipts and notices"
+                        )
+                    }
+                    .buttonStyle(.plain)
 
-                    CaptureOption(
-                        icon: "photo.fill",
-                        title: "Choose Photo or Screenshot",
-                        subtitle: "Use something already on your phone"
-                    )
+                    NavigationLink {
+                        PhotoTextImportView(appState: appState)
+                    } label: {
+                        CaptureOptionContent(
+                            icon: "photo.fill",
+                            title: "Choose Photo or Screenshot",
+                            subtitle: "Use something already on your phone"
+                        )
+                    }
+                    .buttonStyle(.plain)
 
-                    CaptureOption(
-                        icon: "doc.fill",
-                        title: "Upload PDF",
-                        subtitle: "Bills, policies, forms and documents"
-                    )
+                    NavigationLink {
+                        DocumentsView(appState: appState, startWithPDFImport: true)
+                    } label: {
+                        CaptureOptionContent(
+                            icon: "doc.fill",
+                            title: "Upload PDF",
+                            subtitle: "Bills, policies, forms and documents"
+                        )
+                    }
+                    .buttonStyle(.plain)
 
                     NavigationLink {
                         PasteTextView(appState: appState)

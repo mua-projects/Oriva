@@ -117,7 +117,15 @@ struct AdminEditView: View {
             dueDate: updatedDueDate,
             amount: cleanedAmount.isEmpty ? nil : cleanedAmount,
             consequence: analysis.consequence,
-            suggestedAction: updatedSuggestedAction
+            suggestedAction: updatedSuggestedAction,
+            dateType: analysis.dateType,
+            validationWarnings: analysis.validationWarnings.filter { warning in
+                let amountWarning = warning.contains("amount") || warning.contains("Amount") || warning.contains("balance owed")
+                let dateWarning = warning.contains("date") || warning.contains("Date") || warning.contains("deadline")
+                if amountWarning && !cleanedAmount.isEmpty { return false }
+                if dateWarning && hasDueDate { return false }
+                return true
+            }
         )
 
         onSave(updatedAnalysis)

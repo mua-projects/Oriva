@@ -16,6 +16,11 @@ struct DocumentsView: View {
 
     @Bindable var appState: AppState
 
+    // The Add tab can request a one-time PDF import on entry.
+    var startWithPDFImport = false
+    @State private var didPresentInitialPDFImport = false
+    @State private var pendingImportedPDF: StoredDocument?
+
     @State private var showingDocumentPicker = false
     @State private var importErrorMessage: String?
     @State private var previewURL: URL?
@@ -154,9 +159,22 @@ struct DocumentsView: View {
                     }
                 }
             }
+            .onAppear {
+                if startWithPDFImport && !didPresentInitialPDFImport {
+                    didPresentInitialPDFImport = true
+                    showingDocumentPicker = true
+                }
+            }
+            .onChange(of: showingDocumentPicker) { _, isPresented in
+                // Present review only after the system file picker closes.
+                if !isPresented, let document = pendingImportedPDF {
+                    pendingImportedPDF = nil
+                    readDocument(document)
+                }
+            }
             .fileImporter(
                 isPresented: $showingDocumentPicker,
-                allowedContentTypes: [
+                allowedContentTypes: startWithPDFImport ? [.pdf] : [
                     .pdf,
                     .image,
                     .plainText
@@ -174,9 +192,23 @@ struct DocumentsView: View {
 
                     do {
 
+                        let previousIDs = Set(appState.documents.map(\.id))
                         try appState.importDocument(
                             from: url
                         )
+
+                        if startWithPDFImport {
+                            pendingImportedPDF = appState.documents.first {
+                                !previousIDs.contains($0.id)
+                            }
+                            // The file picker may already be dismissed when
+                            // its completion runs. In that case, read now.
+                            if !showingDocumentPicker,
+                               let document = pendingImportedPDF {
+                                pendingImportedPDF = nil
+                                readDocument(document)
+                            }
+                        }
 
                     } catch {
 
@@ -469,6 +501,9 @@ struct ExtractedDocumentTextView: View {
     @State private var showingExtractedText = false
     
     @State private var showingTrackedConfirmation = false
+
+    // User corrections apply only to this review session until confirmed.
+    @State private var correctedAnalysis: AdminAnalysis?
     
     
     
@@ -508,7 +543,16 @@ struct ExtractedDocumentTextView: View {
                 amount: nil,
                 consequence: "This certificate provides evidence of renters insurance coverage; it is not the insurance policy itself. Policy expiration: \(expirationText). \(paymentText)",
                 suggestedAction: "Keep this certificate for your records and review coverage before \(expirationText).",
-                dateType: .policyExpiration
+                dateType: .policyExpiration,
+                validationWarnings: (
+                    expiration == nil
+                    ? ["Policy expiration date was not found. Verify it in the certificate."]
+                    : []
+                ) + (
+                    insurance.paymentStatus == .unpaid
+                    ? ["The certificate suggests an outstanding payment, but does not confirm the payable amount or payment due date."]
+                    : []
+                )
             )
         }
 
@@ -517,7 +561,11 @@ struct ExtractedDocumentTextView: View {
 
     
     
-    private var insuranceDetails: InsuranceDetails? {
+    private var reviewedAnalysis: AdminAnalysis {
+        correctedAnalysis ?? analysis
+    }
+
+        private var insuranceDetails: InsuranceDetails? {
         let text = result.text.lowercased()
         let insuranceSignals = [
             "insurance", "policyholder", "policy holder",
@@ -582,8 +630,41 @@ struct ExtractedDocumentTextView: View {
                         // MARK: Structured Understanding
                         
                         DocumentAnalysisView(
-                            analysis: analysis
+                            analysis: reviewedAnalysis
                         )
+
+                        if !reviewedAnalysis.validationWarnings.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Please verify", systemImage: "exclamationmark.triangle")
+                                    .font(.headline)
+                                ForEach(reviewedAnalysis.validationWarnings, id: \.self) { warning in
+                                    Text("• " + warning)
+                                        .font(.subheadline)
+                                }
+                                Text("Compare these details with the original PDF before tracking.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                            .background(Color(.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                        }
+
+                        if !isAlreadyTracked {
+                            NavigationLink {
+                                AdminEditView(
+                                    analysis: reviewedAnalysis,
+                                    onSave: { updated in
+                                        correctedAnalysis = updated
+                                    }
+                                )
+                            } label: {
+                                Text("Edit Details")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
 
                         if let insuranceDetails {
                             Divider()
@@ -746,14 +827,14 @@ struct ExtractedDocumentTextView: View {
         private func confirmAndTrack() {
             
             let item = AdminItem(
-                title: analysis.title,
-                action: analysis.action,
-                dueDate: analysis.dueDate,
-                amount: analysis.amount,
-                consequence: analysis.consequence,
-                suggestedAction: analysis.suggestedAction,
+                title: reviewedAnalysis.title,
+                action: reviewedAnalysis.action,
+                dueDate: reviewedAnalysis.dueDate,
+                amount: reviewedAnalysis.amount,
+                consequence: reviewedAnalysis.consequence,
+                suggestedAction: reviewedAnalysis.suggestedAction,
                 sourceDocumentID: result.document.id,
-                dateType: analysis.dateType
+                dateType: reviewedAnalysis.dateType
             )
             
             appState.addAdminItem(
@@ -766,7 +847,7 @@ struct ExtractedDocumentTextView: View {
         
         private var trackingConfirmationMessage: String {
             
-            if analysis.dueDate == nil {
+            if reviewedAnalysis.dueDate == nil {
                 
                 return
                 "This item has been added to Needs You because no important date was detected."
@@ -829,7 +910,9 @@ struct ExtractedDocumentTextView: View {
                     title: "Amount",
                     value:
                         analysis.amount
-                    ?? "Not detected"
+                    ?? (analysis.validationWarnings.contains {
+                        $0.localizedCaseInsensitiveContains("different amounts due")
+                    } ? "Needs verification" : "Not detected")
                 )
                 
                 

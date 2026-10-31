@@ -15,6 +15,7 @@ struct AdminAnalysis {
     let consequence: String
     let suggestedAction: String
     let dateType: AdminDateType
+    let validationWarnings: [String]
 
     init(
         title: String,
@@ -23,7 +24,8 @@ struct AdminAnalysis {
         amount: String?,
         consequence: String,
         suggestedAction: String,
-        dateType: AdminDateType = .general
+        dateType: AdminDateType = .general,
+        validationWarnings: [String] = []
     ) {
         self.title = title
         self.action = action
@@ -32,6 +34,7 @@ struct AdminAnalysis {
         self.consequence = consequence
         self.suggestedAction = suggestedAction
         self.dateType = dateType
+        self.validationWarnings = validationWarnings
     }
 
     var formattedDueDate: String {
@@ -39,11 +42,11 @@ struct AdminAnalysis {
             return "Not detected"
         }
 
-        return dueDate.formatted(
-            .dateTime
-                .day()
-                .month(.wide)
-                .year()
-        )
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "MMMM d, yyyy"
+        return formatter.string(from: dueDate)
     }
 }
